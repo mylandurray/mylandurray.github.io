@@ -274,7 +274,8 @@
   .pull { position: absolute; z-index: 1; left: 0; right: calc(-1 * var(--t)); top: calc(-1 * var(--t)); bottom: 0; padding: 0; border: 0; background: none; cursor: pointer; }
   .pull:focus { outline: none; }
   .pull:focus-visible ~ .label { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .act a { position: relative; z-index: 2; }
+  .act a, .act button { position: relative; z-index: 2; }
+  .act button.dl-btn { border: 0; cursor: pointer; }
 
   /* Wrappers */
   .w-stripe { --base: #fff; --wrap: repeating-linear-gradient(135deg, var(--m) 0 14px, #fff 14px 28px); }
@@ -465,7 +466,7 @@
           <div class="sheet">
             <h2>Stock room notes</h2>
             <p><b>Top shelf:</b> web apps. They open in your browser and nothing gets uploaded.</p>
-            <p><b>Bottom shelf:</b> downloads that run on your PC. If Windows says the installer is unrecognised, click More info, then Run anyway.</p>
+            <p><b>Bottom shelf:</b> downloads for Windows and Mac. If Windows says the installer is unrecognised, click More info, then Run anyway. If a Mac won't open it, go to System Settings › Privacy &amp; Security and click Open Anyway.</p>
           </div>
           <div class="sheet small">Hosted on GitHub Pages<br><a href="https://github.com/mylandurray">github.com/mylandurray</a></div>
         </div>
@@ -595,7 +596,9 @@ const APPS = [
 // Each tool's releases are tagged "<id>-v<version>", e.g. "kongcut-v1.4.0", so one
 // repo can hold every tool. The page picks the newest non-prerelease per tool.
 // source: the (private) project repo that builds it, for your reference only.
-// asset:  optional regex to choose the file when a release has several.
+// Each release carries a Windows file (.exe/.msi/.zip) and Mac files named
+// "...-mac-apple-silicon..." and "...-mac-intel..." (.dmg or .zip).
+// mac: "tested" or "untested" (shown on the sheet), shot: screenshot path.
 const DOWNLOADS_REPO = "downloads";
 const DOWNLOADS = [
   {
@@ -603,7 +606,8 @@ const DOWNLOADS = [
     name: "KongCut",
     source: "KongCut",
     blurb: "Lay out tagged PDFs for the Kongsberg table. Get a matched print PDF and i-script cut file, coordinate-locked.",
-    platform: "Windows",
+    mac: "untested",
+    shot: "shots/kongcut.png",
     tags: ["Cutting", "Kongsberg"],
     features: [
       "Lays out tagged PDFs on the sheet for the Kongsberg table",
@@ -618,10 +622,11 @@ const DOWNLOADS = [
     name: "Prepress Check",
     source: "Pre-Press-QuickCheck",
     blurb: "Preflight a PDF from the right-click menu. A popup flags missing bleed, spot colours, RGB, low-res images and unembedded fonts.",
-    platform: "Windows",
+    mac: "untested",
+    shot: "shots/prepress-check.png",
     tags: ["PDF", "Preflight"],
     features: [
-      "Right-click any PDF, then Prepress Check",
+      "Right-click any PDF, then Prepress Check (on a Mac, drop it on the app)",
       "Flags missing trim/bleed, spot colours, RGB and overprint",
       "Low-res image check (300/150 ppi) and unembedded fonts",
       "Results in a popup in well under a second; no Python needed"
@@ -633,7 +638,8 @@ const DOWNLOADS = [
     name: "ProofHub Bridge",
     source: "printlogic-bridge",
     blurb: "Copy a job page in Printlogic and send it straight into ProofHub without retyping it.",
-    platform: "Windows",
+    mac: "tested",
+    shot: "shots/proofhub-bridge.png",
     tags: ["Printlogic", "ProofHub"],
     features: [
       "Copy a job page in Printlogic",
@@ -693,7 +699,7 @@ function packet({ attrs, kind, i, code, stock, name, blurb, spec, foot, wip, ext
 function render(filter = "") {
   const f = filter.trim().toLowerCase();
   const apps = APPS.filter(a => matches(f, a.name, a.blurb, a.section, a.wip ? "wip work in progress" : "", ...a.tags));
-  const dls = DOWNLOADS.filter(d => matches(f, d.name, d.blurb, d.platform, "download", d.wip ? "wip work in progress" : "", ...d.tags));
+  const dls = DOWNLOADS.filter(d => matches(f, d.name, d.blurb, "windows mac download", d.wip ? "wip work in progress" : "", ...d.tags));
 
   $("#web-slots").innerHTML = apps.map(a => packet({
     attrs: `class="packet w-${a.wrap}"`, kind: "web", i: APPS.indexOf(a),
@@ -712,7 +718,7 @@ function render(filter = "") {
     code: stockNo("A1", DOWNLOADS.indexOf(d)), wip: d.wip, stock: d.id, name: d.name, blurb: d.blurb,
     spec: [
       ["Grade", esc(d.tags.join(" · "))],
-      ["Format", `${esc(d.platform)} installer`],
+      ["Format", "Windows · Mac"],
       ["Version", "—", "ver"],
       ["Packed", "—", "packed"]
     ],
@@ -758,13 +764,13 @@ function fillDates() {
   });
 }
 
-// Latest installer per tool from the downloads repo's Releases (one API call, cached for an hour).
+// Latest release per tool from the downloads repo's Releases (one API call, cached for 10 minutes).
 // releases === null means the repo isn't reachable yet, so every packet is stamped "Not published yet".
 let releases;
 async function loadReleases() {
   let cache = null;
-  try { cache = JSON.parse(localStorage.getItem("ghReleases") || "null"); } catch {}
-  if (cache && Date.now() - cache.t < 3600e3) { releases = cache.r; return fillReleases(); }
+  try { cache = JSON.parse(localStorage.getItem("ghReleases2") || "null"); } catch {}
+  if (cache && Date.now() - cache.t < 600e3) { releases = cache.r; return fillReleases(); }
   try {
     const r = await fetch(`https://api.github.com/repos/${OWNER}/${DOWNLOADS_REPO}/releases?per_page=100`);
     releases = r.ok ? (await r.json()).filter(x => !x.draft && !x.prerelease).map(x => ({
@@ -772,17 +778,22 @@ async function loadReleases() {
       assets: x.assets.map(a => ({ name: a.name, url: a.browser_download_url, size: a.size }))
     })) : null;
   } catch { releases = null; }
-  if (releases) try { localStorage.setItem("ghReleases", JSON.stringify({ t: Date.now(), r: releases })); } catch {}
+  if (releases) try { localStorage.setItem("ghReleases2", JSON.stringify({ t: Date.now(), r: releases })); } catch {}
   fillReleases();
 }
 function latestFor(d) {
   // API returns newest first; the first tag with this tool's prefix wins
   const rel = (releases || []).find(x => x.tag.startsWith(d.id + "-v"));
   if (!rel) return null;
-  const pick = d.asset || /\.(exe|msi|zip)$/i;
-  const asset = rel.assets.find(a => pick.test(a.name));
-  return asset && { ...rel, asset, version: rel.tag.slice(d.id.length + 2) };
+  const isMac = a => /mac|\.dmg$/i.test(a.name);
+  const win = rel.assets.find(a => !isMac(a) && /\.(exe|msi|zip)$/i.test(a.name));
+  const macs = [["Apple silicon", /apple-silicon|arm64/i], ["Intel", /intel|x64/i]]
+    .map(([chip, re]) => ({ chip, asset: rel.assets.find(a => isMac(a) && re.test(a.name)) }))
+    .filter(m => m.asset);
+  if (!win && !macs.length) return null;
+  return { ...rel, win, macs, version: rel.tag.slice(d.id.length + 2) };
 }
+const winBtn = rel => rel.win ? `<a class="dl-btn" href="${esc(rel.win.url)}" download title="${esc(rel.win.name)}">${DL_ICON}Windows</a>` : "";
 const mb = n => n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
 function fillReleases() {
   if (releases === undefined) return; // still loading
@@ -790,11 +801,12 @@ function fillReleases() {
     const pk = document.querySelector(`.packet[data-id="${d.id}"]`);
     if (!pk) return;
     const rel = latestFor(d);
-    pk.querySelector(".ver").textContent = rel ? `v${rel.version} · ${mb(rel.asset.size)}` : "—";
+    pk.querySelector(".ver").textContent = rel ? `v${rel.version}` : "—";
     pk.querySelector(".packed").textContent = rel ? ago(rel.date) : "—";
+    // Mac has two builds (chip), so its button opens the sheet to choose
     pk.querySelector(".act").innerHTML = `<span class="more">Details</span>` + (rel ? `
-      <a class="notes" href="${esc(rel.url)}">What's new</a>
-      <a class="dl-btn" href="${esc(rel.asset.url)}" download>${DL_ICON}Download</a>` : `
+      ${winBtn(rel)}
+      ${rel.macs.length ? `<button class="dl-btn alt" type="button" data-pull="${DOWNLOADS.indexOf(d)}">${DL_ICON}Mac</button>` : ""}` : `
       <span class="stamp">Not published yet</span>`);
   });
 }
@@ -828,29 +840,31 @@ function openSample(kind, i) {
     ["Milled", dates[it.repo] ? ago(dates[it.repo]) : "—"],
     ["Offline", it.offline ? `Yes · ${esc(it.offline)}` : "Online only"], ["Source", `<a href="https://github.com/${OWNER}/${esc(it.repo)}">${esc(it.repo)}</a>`]
   ] : [
-    ["Grade", esc(it.tags.join(" · "))], ["Format", `${esc(it.platform)} installer`],
+    ["Grade", esc(it.tags.join(" · "))], ["Format", `Windows · Mac${it.mac === "untested" ? " (not yet tested on a Mac)" : ""}`],
     ["Status", it.wip ? "Work in progress" : "Ready to use"],
-    ["Version", rel ? `v${esc(rel.version)} · ${mb(rel.asset.size)}` : "—"], ["Packed", rel ? ago(rel.date) : "—"],
-    ["File", rel ? esc(rel.asset.name) : "Not published yet"]
+    ["Version", rel ? `v${esc(rel.version)}` : "—"], ["Packed", rel ? ago(rel.date) : "—"],
+    ["Size", rel ? [rel.win && `Windows ${mb(rel.win.size)}`, ...rel.macs.map(m => `Mac ${mb(m.asset.size)}`)].filter(Boolean).slice(0, 2).join(" · ") : "Not published yet"]
   ];
   $("#s-spec").innerHTML = spec.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
   $("#s-act").innerHTML = web
     ? `<a class="dl-btn" href="${esc(urlFor(it))}">Open ${esc(it.name)} →</a>` + (it.offline
         ? `<a class="dl-btn alt save" href="${esc(offlineFor(it))}" download="${esc(it.offline)}">${DL_ICON}Local copy</a>
            <small class="s-note">One HTML file. Save it to a PC or shared drive and double-click it to use it offline in Chrome or Edge.</small>` : "")
-    : rel ? `<a class="dl-btn" href="${esc(rel.asset.url)}" download>${DL_ICON}Download</a><a href="${esc(rel.url)}">What's new</a>`
+    : rel ? winBtn(rel) + rel.macs.map(m => `<a class="dl-btn alt" href="${esc(m.asset.url)}" download title="${esc(m.asset.name)}">${DL_ICON}Mac · ${m.chip}</a>`).join("")
+          + `<a href="${esc(rel.url)}">What's new</a>
+             <small class="s-note">Mac: pick Apple silicon for M1 or newer, Intel for older Macs (Apple menu › About This Mac shows which).${it.mac === "untested" ? " The Mac build hasn't been tested on a Mac yet." : ""} If macOS won't open it, go to System Settings › Privacy &amp; Security and click Open Anyway.</small>`
           : `<span class="stamp">Not published yet</span>`;
   // Proof: screenshot if there is one, else a live (non-interactive) view of the web app, else a blank
   const proof = $("#s-proof");
   if (it.shot) {
     proof.innerHTML = `<img src="${esc(it.shot)}" alt="${esc(it.name)} screenshot">`;
-    $("#s-cap").textContent = "Screenshot";
+    $("#s-cap").textContent = web ? "Screenshot" : "Screenshot · sample job";
   } else if (web) {
     proof.innerHTML = `<div class="proof-empty"><b>Pulling sample…</b></div><iframe src="${esc(urlFor(it))}" title="${esc(it.name)} preview" tabindex="-1" loading="lazy"></iframe>`;
     $("#s-cap").textContent = "Live sample · open it to use it";
   } else {
     proof.innerHTML = `<div class="proof-empty"><b>No sample printed yet</b>Screenshot to follow</div>`;
-    $("#s-cap").textContent = "Desktop tool · runs on your PC";
+    $("#s-cap").textContent = "Desktop tool · Windows and Mac";
   }
   dlg.showModal();
   fitProof();
@@ -862,8 +876,9 @@ dlg.addEventListener("close", () => { $("#s-proof").innerHTML = ""; });
 dlg.addEventListener("click", e => { if (e.target === dlg) closeSample(); }); // click outside the sheet
 $("#s-close").addEventListener("click", closeSample);
 document.addEventListener("click", e => {
-  const b = e.target.closest(".pull");
+  const b = e.target.closest(".pull"), m = e.target.closest("[data-pull]");
   if (b) openSample(b.dataset.kind, +b.dataset.i);
+  else if (m) openSample("dl", +m.dataset.pull);
 });
 addEventListener("resize", fitProof);
 
