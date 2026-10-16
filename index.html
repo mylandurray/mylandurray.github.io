@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production Tool Storage</title>
+<meta name="description" content="Print production tools, shelved like paper stock.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='10' width='26' height='14' fill='%23b98b5a'/%3E%3Crect x='9' y='13' width='14' height='8' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --wall: #e7e3da;
+    --wall-line: rgba(0,0,0,.035);
+    --ink: #1c1c20;
+    --muted: #66645e;
+    --sign: #23262c; --sign-ink: #f3f1ea;
+    --upright: #2f5d9a; --upright-dark: #22477a;
+    --beam: #e2662b; --beam-dark: #b84d1a; --beam-top: #f08a52;
+    --deck: #b7bac0; --deck-line: rgba(0,0,0,.14);
+    --floor: #cdc8bd; --floor-edge: #b3ad9f; --plate: #f4f2ec; --rocker: linear-gradient(#fff 0 45%, #d9d6cd 55%);
+    --label: #fbfaf6; --label-ink: #1d1d1f; --label-muted: #77746c; --label-line: #d9d5ca;
+    --shadow: rgba(40,30,10,.28);
+    --c: #00a0e9; --m: #e4007c; --y: #ffd400;
+    --accent: var(--m);
+    --field: #fbfaf6; --field-line: #cfcabd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --wall: #17171b; --wall-line: rgba(255,255,255,.025);
+      --ink: #ecebe6; --muted: #9b9890;
+      --sign: #2b2e35; --sign-ink: #ecebe6;
+      --upright: #2a4b78; --upright-dark: #1d3657;
+      --beam: #b9531f; --beam-dark: #8a3c15; --beam-top: #cf6a35;
+      --deck: #3d4047; --deck-line: rgba(0,0,0,.35);
+    --floor: #222226; --floor-edge: #2f2f35; --plate: #b9b6ae; --rocker: linear-gradient(#a9a69e 0 45%, #d2cfc6 55%);
+      --floor: #222226; --floor-edge: #2f2f35; --plate: #b9b6ae; --rocker: linear-gradient(#a9a69e 0 45%, #d2cfc6 55%);
+      --label: #e8e5dc; --label-line: #c9c4b7;
+      --shadow: rgba(0,0,0,.55);
+      --field: #222227; --field-line: #3a3a41;
+    }
+  }
+  :root[data-theme="dark"] {
+    --wall: #17171b; --wall-line: rgba(255,255,255,.025);
+    --ink: #ecebe6; --muted: #9b9890;
+    --sign: #2b2e35; --sign-ink: #ecebe6;
+    --upright: #2a4b78; --upright-dark: #1d3657;
+    --beam: #b9531f; --beam-dark: #8a3c15; --beam-top: #cf6a35;
+    --deck: #3d4047; --deck-line: rgba(0,0,0,.35);
+    --floor: #222226; --floor-edge: #2f2f35; --plate: #b9b6ae; --rocker: linear-gradient(#a9a69e 0 45%, #d2cfc6 55%);
+    --label: #e8e5dc; --label-line: #c9c4b7;
+    --shadow: rgba(0,0,0,.55);
+    --field: #222227; --field-line: #3a3a41;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    color: var(--ink);
+    background: var(--wall);
+    background-image: repeating-linear-gradient(90deg, var(--wall-line) 0 1px, transparent 1px 120px);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 16px 0; }
+
+  /* Everything with text sits on something: the sign and noticeboard on the
+     wall, the lookup screen on the PC, labels on packets and beams.
+     Rough scale: ~380px to the metre, so the desk and monitor match the rack. */
+  .room { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 40px; align-items: end; }
+  .bay { min-width: 0; }
+
+  /* Wall sign above the rack */
+  .sign {
+    --screw: radial-gradient(circle, #9a9ca3 0 2.5px, #5b5d63 3px, transparent 3.5px);
+    position: relative; width: fit-content; max-width: 100%; margin: 0 auto 72px;
+    background: var(--sign); color: var(--sign-ink); text-align: center;
+    padding: 18px 40px 20px; border-radius: 4px;
+    box-shadow: 0 12px 20px -12px var(--shadow), inset 0 0 0 3px rgba(255,255,255,.05);
+  }
+  .sign::before { content: ""; position: absolute; inset: 6px; pointer-events: none;
+    background: var(--screw) 0 0 / 10px 10px no-repeat, var(--screw) 100% 0 / 10px 10px no-repeat,
+                var(--screw) 0 100% / 10px 10px no-repeat, var(--screw) 100% 100% / 10px 10px no-repeat; }
+  .cmyk { display: flex; justify-content: center; gap: 4px; margin-bottom: 10px; }
+  .cmyk span { width: 12px; height: 12px; border-radius: 50%; }
+  h1 { margin: 0; font: 800 clamp(20px, 3.6vw, 34px)/1.1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+
+  /* Workstation column: noticeboard and light switch on the wall, desk on the floor */
+  .station { display: flex; flex-direction: column; justify-content: flex-end; gap: 56px; margin-bottom: -10px; }
+  .wall-bits { display: flex; align-items: flex-start; gap: 16px; }
+  .board {
+    flex: 1; min-width: 0; padding: 12px; border-radius: 3px;
+    background: radial-gradient(rgba(0,0,0,.08) 1px, transparent 1.5px) 0 0 / 5px 5px, #b88a58;
+    box-shadow: inset 0 0 0 6px #8a6440, 0 10px 16px -10px var(--shadow);
+  }
+  .sheet {
+    position: relative; background: #fbfaf6; color: #1d1d1f; padding: 14px 12px 10px;
+    font-size: 11.5px; line-height: 1.45; box-shadow: 0 2px 3px rgba(0,0,0,.25);
+  }
+  .sheet + .sheet { margin-top: 10px; transform: rotate(-1.2deg); }
+  .sheet::before { /* pin */
+    content: ""; position: absolute; top: 4px; left: 50%; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ff6aa8, var(--m) 60%); box-shadow: 0 1px 1px rgba(0,0,0,.4);
+  }
+  .sheet h2 { margin: 0 0 6px; font: 800 11px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+  .sheet p { margin: 0 0 6px; }
+  .sheet.small { font-size: 10.5px; color: #55534d; }
+  .sheet.small a { color: #1d1d1f; }
+
+  /* Light switch = theme toggle */
+  .switch {
+    position: relative; flex: none; width: 34px; height: 54px; cursor: pointer;
+    background: var(--plate); border: 0; border-radius: 5px;
+    box-shadow: 0 4px 8px -3px var(--shadow), inset 0 0 0 1px rgba(0,0,0,.08);
+  }
+  .switch::before { content: ""; position: absolute; left: 10px; top: 14px; width: 14px; height: 26px; border-radius: 3px;
+    background: var(--rocker); box-shadow: inset 0 0 0 1px rgba(0,0,0,.18), 0 1px 2px rgba(0,0,0,.2); }
+  .switch::after { content: ""; position: absolute; left: 15px; width: 4px; height: 4px; top: 5px; border-radius: 50%;
+    background: #a8a59c; box-shadow: 0 40px 0 #a8a59c; }
+  .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* Desk: 0.75 m high, same oblique depth as the rack */
+  .desk { --dd: 30px; position: relative; height: 410px; }
+  .desk-top {
+    position: absolute; left: 0; right: var(--dd); bottom: 270px; height: 14px; z-index: 2;
+    background: linear-gradient(#d9d4c9, #bdb7aa); box-shadow: 0 6px 8px -5px var(--shadow);
+  }
+  .desk-top::before { content: ""; position: absolute; left: 0; bottom: 100%; width: calc(100% + var(--dd)); height: var(--dd);
+    clip-path: polygon(var(--dd) 0, 100% 0, calc(100% - var(--dd)) 100%, 0 100%); background: #e9e5dc; }
+  .desk-top::after { content: ""; position: absolute; left: 100%; top: calc(-1 * var(--dd)); width: var(--dd); height: calc(100% + var(--dd));
+    clip-path: polygon(0 var(--dd), 100% 0, 100% calc(100% - var(--dd)), 0 100%); background: #a9a396; }
+  .leg { position: absolute; bottom: 0; width: 10px; height: 270px; background: linear-gradient(90deg, #6d7079, #a9acb3 40%, #5d6068); }
+  .leg.fl { left: 6px; z-index: 2; } .leg.fr { right: calc(var(--dd) + 6px); z-index: 2; }
+  .leg.rl, .leg.rr { bottom: var(--dd); height: calc(270px - var(--dd)); filter: brightness(.65); z-index: 0; }
+  .leg.rl { left: calc(var(--dd) + 6px); } .leg.rr { right: 6px; }
+  .tower { /* PC under the desk */
+    position: absolute; z-index: 1; right: calc(var(--dd) + 26px); bottom: 0; width: 56px; height: 150px;
+    background: linear-gradient(90deg, #26282d, #34363c); border-radius: 2px;
+  }
+  .tower::before { content: ""; position: absolute; left: 100%; bottom: 0; width: 16px; height: calc(100% + 16px);
+    clip-path: polygon(0 16px, 100% 0, 100% calc(100% - 16px), 0 100%); background: #1b1c20; }
+  .tower::after { content: ""; position: absolute; left: 22px; top: 14px; width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid #4b4e55; box-shadow: 0 0 0 1px #111, inset 0 0 3px #5ad16f; }
+  .keyboard { position: absolute; z-index: 3; left: 30px; bottom: 288px; width: 120px; height: 9px;
+    clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); background: #2b2d33; }
+
+  /* Monitor on the desk: ~0.55 m wide */
+  .monitor { position: absolute; z-index: 2; left: 18px; bottom: 296px; width: 214px; display: flex; flex-direction: column; align-items: center; }
+  .bezel { position: relative; width: 100%; background: #2b2d33; border-radius: 6px; padding: 7px 7px 14px;
+    box-shadow: 0 10px 14px -10px var(--shadow), inset 0 0 0 1px rgba(255,255,255,.06); }
+  .bezel::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #5ad16f; box-shadow: 0 0 4px #5ad16f; }
+  .neck { width: 16px; height: 22px; background: linear-gradient(90deg, #4f5259, #8c8f97 40%, #4f5259); }
+  .foot { width: 76px; height: 6px; border-radius: 3px 3px 1px 1px; background: #3a3c42; }
+  .screen {
+    background: #0d1511; color: #8fe3a1; border-radius: 2px; padding: 8px 9px 7px;
+    background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
+    font: 11px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  .scr-title { font-weight: 700; letter-spacing: .12em; border-bottom: 1px dashed rgba(143,227,161,.35); padding-bottom: 4px; margin-bottom: 7px; }
+  .blink { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .scr-search { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
+  .scr-search input {
+    flex: 1; min-width: 0; font: inherit; color: #d9ffe0; background: rgba(143,227,161,.08);
+    border: 1px solid rgba(143,227,161,.35); border-radius: 2px; padding: 3px 5px;
+  }
+  .scr-search input::placeholder { color: rgba(143,227,161,.5); }
+  .scr-search input:focus { outline: 1px solid #8fe3a1; }
+  .scr-count { margin: 0; color: #d9ffe0; min-height: 2.9em; }
+
+  .floor {
+    position: relative; z-index: -1; height: 120px; margin-top: -64px;
+    background: var(--floor); box-shadow: 0 0 0 100vmax var(--floor); clip-path: inset(0 -100vmax -100vmax -100vmax);
+  }
+  .floor::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+    background: var(--floor-edge); box-shadow: 0 0 0 100vmax var(--floor-edge); clip-path: inset(0 -100vmax); }
+
+  /* Bay: one two-tier rack. Uprights run the full height, a beam under each row of slots */
+  /* Oblique view to match the packets: depth runs up and to the right by --d.
+     Front posts sit in front of everything; rear posts, side frames and the
+     wire deck sit behind the packets. */
+  .rack { --d: 36px; --post: 12px; position: relative; isolation: isolate; padding: 0 calc(var(--post) + var(--d)) 0 var(--post); }
+  .post {
+    position: absolute; top: 0; bottom: -10px; width: var(--post); z-index: 3;
+    background:
+      repeating-linear-gradient(180deg, transparent 0 10px, var(--upright-dark) 10px 16px) 3px 0 / 6px 100% no-repeat,
+      var(--upright);
+  }
+  .post.fl { left: 0; }
+  .post.fr { right: var(--d); }
+  .post.rl, .post.rr { z-index: -1; top: calc(-1 * var(--d)); bottom: calc(var(--d) - 10px); filter: brightness(.7); }
+  .post.rl { left: var(--d); }
+  .post.rr { right: 0; }
+  .head-back { /* rear top beam, between the rear posts */
+    position: absolute; z-index: -1; top: calc(-1 * var(--d)); left: calc(var(--d) + var(--post)); right: var(--post); height: 26px;
+    background: linear-gradient(var(--beam) 0 70%, var(--beam-dark) 70%); filter: brightness(.8);
+  }
+  .frame { /* side bracing between a front and rear post, sheared into depth */
+    position: absolute; top: 0; bottom: -10px; width: var(--d); z-index: -1;
+    transform: skewY(-45deg); transform-origin: 0 0;
+    background: var(--upright-dark); opacity: .85;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 90' preserveAspectRatio='none'%3E%3Cpath d='M0 1.5H36M0 1.5L36 45L0 88.5' fill='none' stroke='%23000' stroke-width='3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 90px repeat-y; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 90' preserveAspectRatio='none'%3E%3Cpath d='M0 1.5H36M0 1.5L36 45L0 88.5' fill='none' stroke='%23000' stroke-width='3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 90px repeat-y;
+  }
+  .frame.l { left: calc(var(--post) / 2); }
+  .frame.r { right: calc(var(--post) / 2); }
+  .rack-head { /* top tie beam with the bay plate bolted on */
+    position: relative; z-index: 2; height: 26px; display: flex; align-items: center; padding-left: 18px;
+    background: linear-gradient(var(--beam) 0 70%, var(--beam-dark) 70%);
+  }
+  .bay-plate {
+    display: inline-flex; gap: 10px; margin: 0; padding: 5px 12px; border-radius: 2px;
+    background: var(--sign); color: var(--sign-ink); box-shadow: 0 2px 3px rgba(0,0,0,.3);
+    font: 700 11.5px/1.2 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .12em; text-transform: uppercase;
+  }
+  .bay-plate .code { color: var(--y); }
+  .beam-label { /* shelf label stuck on the beam under that shelf */
+    position: absolute; z-index: 2; right: 14px; bottom: 6px;
+    display: flex; align-items: center; gap: 6px; margin: 0;
+    background: #fbfaf6; color: #1c1c20; padding: 1px 6px; border-radius: 1px; box-shadow: 0 1px 1px rgba(0,0,0,.25);
+    font: 700 10px/14px ui-monospace, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .beam-label::before { content: ""; width: 0; height: 0; border: 4px solid transparent; border-bottom: 6px solid currentColor; margin-top: -5px; }
+  .slots { position: relative; min-height: 330px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  /* Wire-mesh deck: a parallelogram from the beam back to the rear posts.
+     The bottom band is the beam's own top face. */
+  .slots::before, .slot::before {
+    content: ""; position: absolute; left: 0; right: calc(-1 * var(--d)); bottom: 26px; height: var(--d); z-index: 0;
+    clip-path: polygon(0 100%, var(--d) 0, 100% 0, calc(100% - var(--d)) 100%);
+    background:
+      linear-gradient(0deg, var(--beam-top) 0 4px, transparent 4px),
+      repeating-linear-gradient(0deg, var(--deck-line) 0 1px, transparent 1px 7px),
+      repeating-linear-gradient(135deg, var(--deck-line) 0 1px, transparent 1px 10px),
+      linear-gradient(0deg, rgba(0,0,0,.12), transparent),
+      var(--deck);
+  }
+  /* Full-width beam under the last row, so a part-filled row still has a shelf right across */
+  .slots::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 26px; z-index: 1;
+    background: linear-gradient(var(--beam) 0 70%, var(--beam-dark) 70%); box-shadow: 0 6px 8px -4px var(--shadow); }
+  .slot { position: relative; display: flex; flex-direction: column; justify-content: flex-end; padding-top: 28px; min-width: 0; }
+  .slot[hidden] { display: none; }
+  .beam {
+    position: relative; z-index: 1; height: 26px;
+    background: linear-gradient(var(--beam) 0 70%, var(--beam-dark) 70%);
+    box-shadow: 0 6px 8px -4px var(--shadow);
+  }
+  .beam .loc {
+    position: absolute; left: 12px; top: 6px;
+    background: var(--y); color: #1c1c20; padding: 0 5px; border-radius: 1px;
+    font: 700 9px/11px ui-monospace, Consolas, monospace; letter-spacing: .08em;
+  }
+
+  /* Packet: a wrapped ream lying on the beam, front face + top + right side */
+  .packet {
+    --t: 22px; /* ream depth in the oblique view; less than the deck's --d so the deck shows behind */
+    position: relative; z-index: 2; display: block; margin: var(--t) calc(18px + var(--t)) 0 18px;
+    padding: 20px 14px 16px;
+    background: var(--wrap, #ccc); background-color: var(--base, #ccc);
+    color: var(--label-ink); text-decoration: none;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.12), inset 0 -5px 0 rgba(0,0,0,.08), 8px 2px 0 -2px rgba(0,0,0,.05);
+    transition: transform .2s ease;
+  }
+  .packet::before, .packet::after { content: ""; position: absolute; pointer-events: none; background: var(--wrap, #ccc); background-color: var(--base, #ccc); }
+  .packet::before { /* top face */
+    left: 0; bottom: 100%; width: calc(100% + var(--t)); height: var(--t);
+    clip-path: polygon(var(--t) 0, 100% 0, calc(100% - var(--t)) 100%, 0 100%);
+    filter: brightness(1.18);
+  }
+  .packet::after { /* right side, with the wrapper's folded end */
+    left: 100%; top: calc(-1 * var(--t)); width: var(--t); height: calc(100% + var(--t));
+    clip-path: polygon(0 var(--t), 100% 0, 100% calc(100% - var(--t)), 0 100%);
+    filter: brightness(.72);
+  }
+  .packet:hover, .packet:focus-within { transform: translateY(-6px); }
+  /* The whole packet (top and side faces included) pulls a sample sheet; links on the label sit above it */
+  .pull { position: absolute; z-index: 1; left: 0; right: calc(-1 * var(--t)); top: calc(-1 * var(--t)); bottom: 0; padding: 0; border: 0; background: none; cursor: pointer; }
+  .pull:focus { outline: none; }
+  .pull:focus-visible ~ .label { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .act a { position: relative; z-index: 2; }
+
+  /* Wrappers */
+  .w-stripe { --base: #fff; --wrap: repeating-linear-gradient(135deg, var(--m) 0 14px, #fff 14px 28px); }
+  .w-kraft  { --base: #b98b5a; --wrap:
+      repeating-linear-gradient(90deg, rgba(60,30,0,.06) 0 2px, transparent 2px 5px),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 1px, transparent 1px 4px),
+      linear-gradient(90deg, transparent 0 62%, rgba(60,30,0,.18) 62% 63%, transparent 63%); }
+  .w-check  { --base: var(--y); --wrap:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.09) 0 3px, transparent 3px 14px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,.09) 0 3px, transparent 3px 14px); }
+  .w-dots   { --base: var(--c); --wrap: radial-gradient(circle, rgba(255,255,255,.5) 2.5px, transparent 3px) 0 0 / 14px 14px; }
+  .w-gloss  { --base: #1f1f25; --wrap:
+      linear-gradient(115deg, transparent 35%, rgba(255,255,255,.14) 48%, transparent 60%),
+      linear-gradient(transparent 0 78%, #c9a24a 78% 84%, transparent 84%); }
+  .w-band   { --base: #eef1f5; --wrap:
+      linear-gradient(transparent 0 14%, #2a5db0 14% 22%, transparent 22% 78%, #2a5db0 78% 86%, transparent 86%); }
+  .w-wave   { --base: #3f8f6b; --wrap: repeating-radial-gradient(circle at 0 120%, transparent 0 9px, rgba(255,255,255,.16) 9px 11px); }
+
+  /* QC hold sticker: red, slapped across the top of the packet like stock that isn't cleared for use */
+  .hold {
+    position: absolute; z-index: 2; top: 4px; right: 10px; transform: rotate(2.5deg); pointer-events: none;
+    background: #d7261e; color: #fff; padding: 3px 8px 3px 20px; border-radius: 1px;
+    font: 800 9.5px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1.5px rgba(255,255,255,.55);
+  }
+  .hold::before { /* no-entry mark */
+    content: ""; position: absolute; left: 7px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%;
+    background: linear-gradient(#d7261e, #d7261e) center / 6px 2px no-repeat, #fff;
+  }
+  .s-head h2 .hold { position: relative; top: -8px; right: auto; margin-left: 8px; vertical-align: middle; display: inline-block; transform: rotate(-2deg); font-size: 11px; }
+
+  /* Stock label */
+  .label {
+    position: relative; background: var(--label); color: var(--label-ink);
+    padding: 12px 14px 10px; border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.3);
+    font-size: 12px; line-height: 1.4;
+  }
+  .label-top { display: flex; justify-content: space-between; gap: 8px; font: 700 9.5px/1 ui-monospace, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--label-muted); white-space: nowrap; }
+  .label h3 { font: 800 24px/1.05 "Arial Narrow", "Roboto Condensed", system-ui, sans-serif; letter-spacing: -0.01em; margin: 8px 0 4px; font-stretch: condensed; }
+  .label p { margin: 0 0 10px; color: var(--label-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 4.2em; }
+  .spec { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; padding: 8px 0; border-top: 1px solid var(--label-line); border-bottom: 1px solid var(--label-line); }
+  .spec dt { font: 700 9.5px/16px ui-monospace, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--label-muted); }
+  .spec dd { margin: 0; font: 11.5px/16px ui-monospace, "Cascadia Code", Consolas, monospace; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .label-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 10px; min-height: 36px; }
+  .barcode { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .barcode svg { width: 110px; height: 24px; display: block; }
+  .barcode span { font: 9px/1 ui-monospace, Consolas, monospace; letter-spacing: .1em; color: var(--label-muted); max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .act { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; font-size: 12px; }
+  .open { font-weight: 700; font-size: 13px; white-space: nowrap; color: inherit; text-decoration: none; }
+  .open:hover, .open:focus-visible { color: var(--accent); }
+  .more { font: 700 9.5px/1 ui-monospace, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--label-muted); white-space: nowrap; }
+  .packet:hover .more, .pull:focus-visible ~ .label .more { color: var(--accent); }
+  .dl-btn {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    font: 700 13px/1 system-ui, sans-serif; text-decoration: none;
+    background: var(--label-ink); color: var(--label); border-radius: 2px; padding: 8px 11px;
+  }
+  .dl-btn svg { width: 14px; height: 14px; }
+  .dl-btn:hover, .dl-btn:focus-visible { background: var(--accent); color: #fff; outline: none; }
+  .dl-btn.icon { padding: 7px; }
+  .dl-btn.alt { background: none; color: var(--label-ink); box-shadow: inset 0 0 0 1.5px var(--label-ink); }
+  .dl-btn.alt:hover, .dl-btn.alt:focus-visible { background: var(--accent); color: #fff; box-shadow: none; }
+  .dl-btn[aria-busy="true"] { opacity: .55; cursor: progress; }
+  .s-note { flex-basis: 100%; color: var(--label-muted); font-size: 12px; line-height: 1.4; }
+  .dl-btn[aria-disabled="true"] { background: transparent; color: var(--label-muted); box-shadow: inset 0 0 0 1px var(--label-line); font-weight: 600; pointer-events: none; }
+  .act .notes { color: var(--label-muted); }
+  .stamp { /* "Not published yet" overprint, in place of the Download button */
+    display: inline-block; transform: rotate(-6deg); white-space: nowrap;
+    border: 2px solid var(--m); color: var(--m); border-radius: 3px; padding: 2px 6px;
+    font: 800 11px/1.1 ui-monospace, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; opacity: .8;
+  }
+
+  /* Sample sheet: pulled from a packet, held up in front of the rack */
+  .sample-dlg { border: 0; padding: 0; background: none; max-width: min(940px, calc(100vw - 32px)); width: 100%; max-height: calc(100vh - 32px); overflow: visible; }
+  .sample-dlg::backdrop { background: rgba(20,16,10,.62); }
+  .sample-dlg[open] .sample { animation: pull-out .28s cubic-bezier(.2,.8,.3,1); }
+  @keyframes pull-out { from { transform: translateY(40px) rotate(1deg); opacity: 0; } }
+  .sample {
+    position: relative; background: var(--label); color: var(--label-ink);
+    max-height: calc(100vh - 32px); overflow: auto; padding: 0 28px 26px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,.6), inset 0 0 0 1px rgba(0,0,0,.08);
+    font-size: 14px; line-height: 1.5;
+  }
+  .s-band { height: 18px; margin: 0 -28px 20px; box-shadow: inset 0 -1px 0 rgba(0,0,0,.15); background: var(--wrap, #ccc); background-color: var(--base, #ccc); }
+  .s-head { display: flex; align-items: flex-start; gap: 16px; padding-bottom: 14px; border-bottom: 2px solid var(--label-ink); }
+  .s-head .label-top { justify-content: flex-start; gap: 14px; }
+  .s-head h2 { font: 800 36px/1 "Arial Narrow", "Roboto Condensed", system-ui, sans-serif; font-stretch: condensed; letter-spacing: -0.01em; margin: 8px 0 0; }
+  .s-close {
+    margin-left: auto; flex: none; border: 1px solid var(--label-line); background: none; color: var(--label-ink); border-radius: 2px;
+    font: 700 11px/1 ui-monospace, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; padding: 9px 11px; cursor: pointer;
+  }
+  .s-close:hover, .s-close:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+  .s-body { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 26px; margin-top: 20px; }
+  /* Proof: the app's own page, framed with crop marks like a printed sample */
+  .proof { margin: 0; }
+  .proof-frame {
+    position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #fff;
+    box-shadow: 0 0 0 1px var(--label-line), 0 8px 18px -10px rgba(0,0,0,.4);
+  }
+  .proof-wrap { position: relative; padding: 14px; }
+  .proof-wrap::before, .proof-wrap::after { /* crop marks */
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(var(--label-ink), var(--label-ink)) 14px 0 / 1px 8px,
+      linear-gradient(var(--label-ink), var(--label-ink)) 0 14px / 8px 1px,
+      linear-gradient(var(--label-ink), var(--label-ink)) calc(100% - 14px) 0 / 1px 8px,
+      linear-gradient(var(--label-ink), var(--label-ink)) 100% 14px / 8px 1px;
+    background-repeat: no-repeat;
+  }
+  .proof-wrap::after { transform: scaleY(-1); }
+  .proof-frame iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; border: 0; transform-origin: 0 0; pointer-events: none; background: #fff; }
+  .proof-frame img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .proof-empty {
+    position: absolute; inset: 0; display: grid; place-content: center; gap: 6px; text-align: center; padding: 20px;
+    background: repeating-linear-gradient(135deg, transparent 0 10px, rgba(0,0,0,.035) 10px 20px), #fff;
+    color: #77746c; font: 12px/1.4 ui-monospace, Consolas, monospace;
+  }
+  .proof-empty b { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #1d1d1f; }
+  .proof figcaption { margin-top: 2px; font: 10px/1.4 ui-monospace, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--label-muted); text-align: center; }
+  .s-about { margin: 0 0 14px; }
+  .s-info h3 { margin: 16px 0 6px; font: 700 10px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--label-muted); }
+  .s-info ul { margin: 0; padding-left: 18px; }
+  .s-info li { margin: 3px 0; }
+  .s-info li::marker { color: var(--accent); }
+  .s-info .spec { margin-top: 16px; }
+  .s-act { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
+  .s-act .dl-btn { padding: 11px 14px; font-size: 14px; }
+  .s-act a:not(.dl-btn) { color: var(--label-ink); font-weight: 600; }
+  .s-act a:not(.dl-btn):hover { color: var(--accent); }
+
+  @media (max-width: 760px) {
+    .sample { padding: 0 18px 20px; }
+    .s-band { margin: 0 -18px 16px; }
+    .s-head h2 { font-size: 30px; }
+    .s-body { grid-template-columns: 1fr; gap: 16px; }
+  }
+
+  @media (max-width: 760px) {
+    .room { grid-template-columns: 1fr; gap: 40px; }
+    /* No floor space for a desk: the screen is wall-mounted above the rack on its bracket */
+    /* Phone order: sign, then noticeboard and screen, then the rack */
+    .bay { display: contents; }
+    .sign { order: -2; margin-bottom: 0; }
+    .station { order: -1; margin: 0; gap: 24px; }
+    .desk { height: auto; }
+    .desk-top, .leg, .tower, .keyboard, .neck, .foot { display: none; }
+    .monitor { position: relative; left: auto; bottom: auto; width: 100%; }
+    .bezel::before { content: ""; position: absolute; z-index: -1; left: 35%; right: 35%; top: 25%; bottom: 25%; background: #4f5259; box-shadow: 0 0 0 6px #6d7079; }
+    .slots { min-height: 0; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding-top: 24px; }
+    .sign { padding: 16px 22px 18px; }
+    .slots { grid-template-columns: 1fr; }
+    .rack { --d: 24px; }
+    .packet { --t: 16px; margin-left: 12px; margin-right: calc(12px + var(--t)); padding: 16px 14px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .packet { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="room">
+    <main class="bay" id="bay">
+      <div class="sign">
+        <div class="cmyk" aria-hidden="true">
+          <span style="background:var(--c)"></span><span style="background:var(--m)"></span><span style="background:var(--y)"></span><span style="background:#f3f1ea"></span>
+        </div>
+        <h1>Production Tool Storage</h1>
+      </div>
+      <div class="rack">
+        <i class="post rl"></i><i class="post rr"></i><i class="head-back"></i><i class="frame l"></i><i class="frame r"></i>
+        <i class="post fl"></i><i class="post fr"></i>
+        <div class="rack-head"><h2 class="bay-plate"><span class="code">Bay A</span>Print production</h2></div>
+        <div class="tier" id="web">
+          <div class="slots" id="web-slots"></div>
+        </div>
+        <div class="tier" id="downloads">
+          <div class="slots" id="dl-slots"></div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="station" aria-label="Workstation">
+      <div class="wall-bits">
+        <div class="board">
+          <div class="sheet">
+            <h2>Stock room notes</h2>
+            <p><b>Top shelf:</b> web apps. They open in your browser and nothing gets uploaded.</p>
+            <p><b>Bottom shelf:</b> downloads that run on your PC. If Windows says the installer is unrecognised, click More info, then Run anyway.</p>
+          </div>
+          <div class="sheet small">Hosted on GitHub Pages<br><a href="https://github.com/mylandurray">github.com/mylandurray</a></div>
+        </div>
+        <button class="switch" id="theme" type="button" aria-label="Lights: toggle dark mode" title="Lights"></button>
+      </div>
+      <div class="desk">
+        <div class="monitor">
+          <div class="bezel">
+            <div class="screen">
+              <div class="scr-title">STOCK LOOKUP<span class="blink">_</span></div>
+              <label class="scr-search"><span>find&gt;</span><input type="search" id="q" placeholder="name or tag" aria-label="Filter tools" autocomplete="off"></label>
+              <p class="scr-count" id="count"></p>
+            </div>
+          </div>
+          <div class="neck"></div><div class="foot"></div>
+        </div>
+        <i class="keyboard"></i>
+        <div class="desk-top"></div>
+        <i class="leg rl"></i><i class="leg rr"></i><i class="tower"></i><i class="leg fl"></i><i class="leg fr"></i>
+      </div>
+    </aside>
+  </div>
+  <div class="floor"></div>
+</div>
+
+<dialog class="sample-dlg" id="sample" aria-labelledby="s-name">
+  <article class="sample">
+    <div class="s-band" id="s-band"></div>
+    <header class="s-head">
+      <div>
+        <div class="label-top"><span>Sample sheet</span><span id="s-code"></span></div>
+        <h2 id="s-name"></h2>
+      </div>
+      <button class="s-close" type="button" id="s-close">Back on shelf ✕</button>
+    </header>
+    <div class="s-body">
+      <figure class="proof">
+        <div class="proof-wrap"><div class="proof-frame" id="s-proof"></div></div>
+        <figcaption id="s-cap"></figcaption>
+      </figure>
+      <div class="s-info">
+        <p class="s-about" id="s-about"></p>
+        <h3>On the sheet</h3>
+        <ul id="s-features"></ul>
+        <dl class="spec" id="s-spec"></dl>
+        <div class="s-act" id="s-act"></div>
+      </div>
+    </div>
+  </article>
+</dialog>
+
+<script>
+// ---- Web apps --------------------------------------------------------------
+// repo: GitHub repo name (used for the link and the "milled" date)
+// url:  optional override if the app lives somewhere other than /<repo>/
+// wrap: packet wrapper — stripe, kraft, check, dots, gloss, band, wave
+// features: bullet points for the sample sheet (opened by clicking a packet)
+// shot: optional screenshot path; web apps fall back to a live preview of the app itself
+// wip: true puts a "Work in progress" hold sticker on the packet
+// offline: optional single-file build inside the app's folder, offered as a local-copy download
+//          (only for apps that work from a double-clicked file, i.e. everything inlined)
+const OWNER = "mylandurray";
+const APPS = [
+  {
+    repo: "bleedline",
+    name: "Bleedline",
+    blurb: "Add mirrored or stretched bleed and trim marks to finished-size artwork. Drop in a PDF, JPG or PNG, get a print-ready PDF back.",
+    section: "Prepress",
+    tags: ["PDF", "Bleed", "Offline"],
+    features: [
+      "Mirrored or stretched edge bleed, sized in mm",
+      "Optional trim marks on the output",
+      "Takes PDF, JPG or PNG; returns a print-ready PDF",
+      "Runs in the browser; files never leave your machine"
+    ],
+    offline: "Bleedline.html",
+    wrap: "stripe"
+  },
+  {
+    repo: "DoggettProductionWalkthrough",
+    name: "How It's Done",
+    blurb: "Follow one sheet through a production digital press, from feeder to finished stack.",
+    section: "Explainers",
+    tags: ["Walkthrough", "Digital press"],
+    features: [
+      "Step-by-step path of a sheet through the press",
+      "Covers feeding, imaging, fusing and stacking",
+      "Made for new starters and curious customers"
+    ],
+    wip: true,
+    wrap: "kraft"
+  },
+  {
+    repo: "Mailroom",
+    name: "Mailroom",
+    blurb: "Turn a spreadsheet of addresses into a print-ready PDF for A4 address labels, C5 or C4 envelopes, or your own mailer design.",
+    section: "Mailroom",
+    tags: ["Labels", "Envelopes", "Mail merge"],
+    features: [
+      "A4 label sheets (Avery L7160 / J8160, 21 per sheet) or any sheet you describe",
+      "Prints straight onto C5 or C4 envelopes",
+      "Merges names and addresses onto your own PDF or image design",
+      "Spreadsheets and addresses never leave your computer"
+    ],
+    offline: "mailroom.html",
+    wrap: "band"
+  },
+  {
+    repo: "ExpoPreview",
+    name: "Expo Preview",
+    blurb: "Lay out an exhibition stand in 3D from the stock catalogue, apply client artwork, and export a mockup PDF to send.",
+    section: "Exhibitions",
+    tags: ["3D", "Stands", "Mockups"],
+    features: [
+      "Island, peninsula, corner or inline stands with shell-scheme walls",
+      "Pixlip lightboxes, backdrops, pull-ups, counters and drum tables",
+      "Drop an image or PDF onto any surface for the client's artwork",
+      "Exports a PDF with every view, a dimensioned floor plan and an artwork checklist"
+    ],
+    wip: true,
+    wrap: "wave"
+  }
+];
+
+// ---- Desktop downloads -----------------------------------------------------
+// Installers are published as GitHub Releases on one public repo (DOWNLOADS_REPO).
+// Each tool's releases are tagged "<id>-v<version>", e.g. "kongcut-v1.4.0", so one
+// repo can hold every tool. The page picks the newest non-prerelease per tool.
+// source: the (private) project repo that builds it, for your reference only.
+// asset:  optional regex to choose the file when a release has several.
+const DOWNLOADS_REPO = "downloads";
+const DOWNLOADS = [
+  {
+    id: "kongcut",
+    name: "KongCut",
+    source: "KongCut",
+    blurb: "Lay out tagged PDFs for the Kongsberg table. Get a matched print PDF and i-script cut file, coordinate-locked.",
+    platform: "Windows",
+    tags: ["Cutting", "Kongsberg"],
+    features: [
+      "Lays out tagged PDFs on the sheet for the Kongsberg table",
+      "Writes a matched print PDF and i-script cut file together",
+      "Print and cut coordinates are locked to each other"
+    ],
+    wip: true,
+    wrap: "check"
+  },
+  {
+    id: "prepress-check",
+    name: "Prepress Check",
+    source: "Pre-Press-QuickCheck",
+    blurb: "Preflight a PDF from the right-click menu. A popup flags missing bleed, spot colours, RGB, low-res images and unembedded fonts.",
+    platform: "Windows",
+    tags: ["PDF", "Preflight"],
+    features: [
+      "Right-click any PDF, then Prepress Check",
+      "Flags missing trim/bleed, spot colours, RGB and overprint",
+      "Low-res image check (300/150 ppi) and unembedded fonts",
+      "Results in a popup in well under a second; no Python needed"
+    ],
+    wrap: "dots"
+  },
+  {
+    id: "proofhub-bridge",
+    name: "ProofHub Bridge",
+    source: "printlogic-bridge",
+    blurb: "Copy a job page in Printlogic and send it straight into ProofHub without retyping it.",
+    platform: "Windows",
+    tags: ["Printlogic", "ProofHub"],
+    features: [
+      "Copy a job page in Printlogic",
+      "Sends it into ProofHub as a new job",
+      "No retyping job numbers, customers or specs"
+    ],
+    wrap: "gloss"
+  }
+];
+// -------------------------------------------------------------------------
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const urlFor = a => a.url || `https://${OWNER}.github.io/${a.repo}/`;
+const offlineFor = a => a.offline && new URL(a.offline, urlFor(a)).href;
+const matches = (f, ...words) => !f || words.join(" ").toLowerCase().includes(f);
+const DL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>';
+
+// Decorative barcode, stable per name
+function barcode(text) {
+  let h = 2166136261;
+  for (const ch of text) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  let x = 0, bars = "";
+  while (x < 108) {
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    const w = 1 + (h >>> 29) % 3, gap = 1 + (h >>> 26) % 2;
+    bars += `<rect x="${x}" width="${w}" height="24"/>`;
+    x += w + gap;
+  }
+  return `<svg viewBox="0 0 110 24" fill="currentColor" aria-hidden="true">${bars}</svg>`;
+}
+const stockNo = (prefix, i) => `${prefix}-${String(i + 1).padStart(2, "0")}`;
+
+const WIP = `<span class="hold" title="Still being built: expect rough edges">Work in progress</span>`;
+function packet({ attrs, kind, i, code, stock, name, blurb, spec, foot, wip, extra = "" }) {
+  return `
+    <div class="slot" data-stock="${code}">
+      <div ${attrs}>
+        <button class="pull" type="button" data-kind="${kind}" data-i="${i}" aria-label="${esc(name)}: details and preview"></button>
+        ${wip ? WIP : ""}
+        <div class="label">
+          <div class="label-top"><span>Stock no.</span><span>${code}</span></div>
+          ${extra}
+          <h3>${esc(name)}</h3>
+          <p>${esc(blurb)}</p>
+          <dl class="spec">${spec.map(([k, v, cls]) => `<dt>${k}</dt><dd${cls ? ` class="${cls}"` : ""}>${v}</dd>`).join("")}</dl>
+          <div class="label-foot">
+            <div class="barcode">${barcode(stock)}<span>${esc(stock.toUpperCase())}</span></div>
+            <div class="act">${foot}</div>
+          </div>
+        </div>
+      </div>
+      <div class="beam"><span class="loc">${code}</span></div>
+    </div>`;
+}
+
+function render(filter = "") {
+  const f = filter.trim().toLowerCase();
+  const apps = APPS.filter(a => matches(f, a.name, a.blurb, a.section, a.wip ? "wip work in progress" : "", ...a.tags));
+  const dls = DOWNLOADS.filter(d => matches(f, d.name, d.blurb, d.platform, "download", d.wip ? "wip work in progress" : "", ...d.tags));
+
+  $("#web-slots").innerHTML = apps.map(a => packet({
+    attrs: `class="packet w-${a.wrap}"`, kind: "web", i: APPS.indexOf(a),
+    code: stockNo("A2", APPS.indexOf(a)), wip: a.wip, stock: a.repo, name: a.name, blurb: a.blurb,
+    spec: [
+      ["Grade", esc(a.section)],
+      ["Finish", esc(a.tags.join(" · "))],
+      ["Format", "Web app"],
+      ["Milled", "—", `milled" data-repo="${esc(a.repo)}`]
+    ],
+    foot: `<span class="more">Details</span>${a.offline ? `<a class="dl-btn icon save" href="${esc(offlineFor(a))}" download="${esc(a.offline)}" title="Download a local copy (one HTML file)" aria-label="Download a local copy of ${esc(a.name)}">${DL_ICON}</a>` : ""}<a class="open" href="${esc(urlFor(a))}">Open →</a>`
+  })).join("");
+
+  $("#dl-slots").innerHTML = dls.map(d => packet({
+    attrs: `class="packet w-${d.wrap}" data-id="${esc(d.id)}"`, kind: "dl", i: DOWNLOADS.indexOf(d),
+    code: stockNo("A1", DOWNLOADS.indexOf(d)), wip: d.wip, stock: d.id, name: d.name, blurb: d.blurb,
+    spec: [
+      ["Grade", esc(d.tags.join(" · "))],
+      ["Format", `${esc(d.platform)} installer`],
+      ["Version", "—", "ver"],
+      ["Packed", "—", "packed"]
+    ],
+    foot: `<span class="dl-btn" aria-disabled="true">${DL_ICON}Checking…</span>`
+  })).join("");
+
+  // Shelf labels live on the beam under each shelf
+  $("#web-slots").insertAdjacentHTML("beforeend", `<p class="beam-label">Top shelf · Web apps</p>`);
+  $("#dl-slots").insertAdjacentHTML("beforeend", `<p class="beam-label">Bottom shelf · Downloads</p>`);
+  const n = apps.length + dls.length, total = APPS.length + DOWNLOADS.length;
+  $("#count").textContent = !n ? "Nothing on the shelves matches that." : n === total ? `${total} items in stock.` : `${n} of ${total} items match.`;
+  fillDates();
+  fillReleases();
+}
+
+function ago(iso) {
+  const days = Math.floor((Date.now() - new Date(iso)) / 864e5);
+  if (days < 1) return "today";
+  if (days < 2) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+// Last-updated dates from the public GitHub API (cached for an hour; silently skipped if it fails)
+const dates = {};
+async function loadDates() {
+  let cache = null;
+  try { cache = JSON.parse(localStorage.getItem("ghDates") || "null"); } catch {}
+  if (cache && Date.now() - cache.t < 3600e3) { Object.assign(dates, cache.d); return fillDates(); }
+  await Promise.all(APPS.map(async a => {
+    try {
+      const r = await fetch(`https://api.github.com/repos/${OWNER}/${a.repo}`);
+      if (r.ok) dates[a.repo] = (await r.json()).pushed_at;
+    } catch {}
+  }));
+  try { localStorage.setItem("ghDates", JSON.stringify({ t: Date.now(), d: dates })); } catch {}
+  fillDates();
+}
+function fillDates() {
+  document.querySelectorAll(".milled[data-repo]").forEach(el => {
+    const d = dates[el.dataset.repo];
+    el.textContent = d ? ago(d) : "—";
+  });
+}
+
+// Latest installer per tool from the downloads repo's Releases (one API call, cached for an hour).
+// releases === null means the repo isn't reachable yet, so every packet is stamped "Not published yet".
+let releases;
+async function loadReleases() {
+  let cache = null;
+  try { cache = JSON.parse(localStorage.getItem("ghReleases") || "null"); } catch {}
+  if (cache && Date.now() - cache.t < 3600e3) { releases = cache.r; return fillReleases(); }
+  try {
+    const r = await fetch(`https://api.github.com/repos/${OWNER}/${DOWNLOADS_REPO}/releases?per_page=100`);
+    releases = r.ok ? (await r.json()).filter(x => !x.draft && !x.prerelease).map(x => ({
+      tag: x.tag_name, url: x.html_url, date: x.published_at,
+      assets: x.assets.map(a => ({ name: a.name, url: a.browser_download_url, size: a.size }))
+    })) : null;
+  } catch { releases = null; }
+  if (releases) try { localStorage.setItem("ghReleases", JSON.stringify({ t: Date.now(), r: releases })); } catch {}
+  fillReleases();
+}
+function latestFor(d) {
+  // API returns newest first; the first tag with this tool's prefix wins
+  const rel = (releases || []).find(x => x.tag.startsWith(d.id + "-v"));
+  if (!rel) return null;
+  const pick = d.asset || /\.(exe|msi|zip)$/i;
+  const asset = rel.assets.find(a => pick.test(a.name));
+  return asset && { ...rel, asset, version: rel.tag.slice(d.id.length + 2) };
+}
+const mb = n => n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
+function fillReleases() {
+  if (releases === undefined) return; // still loading
+  DOWNLOADS.forEach(d => {
+    const pk = document.querySelector(`.packet[data-id="${d.id}"]`);
+    if (!pk) return;
+    const rel = latestFor(d);
+    pk.querySelector(".ver").textContent = rel ? `v${rel.version} · ${mb(rel.asset.size)}` : "—";
+    pk.querySelector(".packed").textContent = rel ? ago(rel.date) : "—";
+    pk.querySelector(".act").innerHTML = `<span class="more">Details</span>` + (rel ? `
+      <a class="notes" href="${esc(rel.url)}">What's new</a>
+      <a class="dl-btn" href="${esc(rel.asset.url)}" download>${DL_ICON}Download</a>` : `
+      <span class="stamp">Not published yet</span>`);
+  });
+}
+
+// Theme toggle (remembers choice per browser)
+const root = document.documentElement;
+try { const t = localStorage.getItem("theme"); if (t) root.dataset.theme = t; } catch {}
+$("#theme").addEventListener("click", () => {
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("theme", root.dataset.theme); } catch {}
+});
+
+// Sample sheet: click a packet to pull it off the shelf for a closer look
+const dlg = $("#sample");
+function fitProof() {
+  const f = $("#s-proof iframe");
+  if (f) f.style.transform = `scale(${$("#s-proof").clientWidth / 1280})`;
+}
+function openSample(kind, i) {
+  const web = kind === "web", it = (web ? APPS : DOWNLOADS)[i];
+  const rel = web ? null : latestFor(it);
+  $("#s-band").className = `s-band w-${it.wrap}`;
+  $("#s-code").textContent = stockNo(web ? "A2" : "A1", i);
+  $("#s-name").innerHTML = esc(it.name) + (it.wip ? ` ${WIP}` : "");
+  $("#s-about").textContent = it.blurb;
+  $("#s-features").innerHTML = (it.features || []).map(x => `<li>${esc(x)}</li>`).join("");
+  const spec = web ? [
+    ["Grade", esc(it.section)], ["Finish", esc(it.tags.join(" · "))], ["Format", "Web app, runs in the browser"],
+    ["Status", it.wip ? "Work in progress" : "Ready to use"],
+    ["Milled", dates[it.repo] ? ago(dates[it.repo]) : "—"],
+    ["Offline", it.offline ? `Yes · ${esc(it.offline)}` : "Online only"], ["Source", `<a href="https://github.com/${OWNER}/${esc(it.repo)}">${esc(it.repo)}</a>`]
+  ] : [
+    ["Grade", esc(it.tags.join(" · "))], ["Format", `${esc(it.platform)} installer`],
+    ["Status", it.wip ? "Work in progress" : "Ready to use"],
+    ["Version", rel ? `v${esc(rel.version)} · ${mb(rel.asset.size)}` : "—"], ["Packed", rel ? ago(rel.date) : "—"],
+    ["File", rel ? esc(rel.asset.name) : "Not published yet"]
+  ];
+  $("#s-spec").innerHTML = spec.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  $("#s-act").innerHTML = web
+    ? `<a class="dl-btn" href="${esc(urlFor(it))}">Open ${esc(it.name)} →</a>` + (it.offline
+        ? `<a class="dl-btn alt save" href="${esc(offlineFor(it))}" download="${esc(it.offline)}">${DL_ICON}Local copy</a>
+           <small class="s-note">One HTML file. Save it to a PC or shared drive and double-click it to use it offline in Chrome or Edge.</small>` : "")
+    : rel ? `<a class="dl-btn" href="${esc(rel.asset.url)}" download>${DL_ICON}Download</a><a href="${esc(rel.url)}">What's new</a>`
+          : `<span class="stamp">Not published yet</span>`;
+  // Proof: screenshot if there is one, else a live (non-interactive) view of the web app, else a blank
+  const proof = $("#s-proof");
+  if (it.shot) {
+    proof.innerHTML = `<img src="${esc(it.shot)}" alt="${esc(it.name)} screenshot">`;
+    $("#s-cap").textContent = "Screenshot";
+  } else if (web) {
+    proof.innerHTML = `<div class="proof-empty"><b>Pulling sample…</b></div><iframe src="${esc(urlFor(it))}" title="${esc(it.name)} preview" tabindex="-1" loading="lazy"></iframe>`;
+    $("#s-cap").textContent = "Live sample · open it to use it";
+  } else {
+    proof.innerHTML = `<div class="proof-empty"><b>No sample printed yet</b>Screenshot to follow</div>`;
+    $("#s-cap").textContent = "Desktop tool · runs on your PC";
+  }
+  dlg.showModal();
+  fitProof();
+}
+function closeSample() {
+  dlg.close();
+}
+dlg.addEventListener("close", () => { $("#s-proof").innerHTML = ""; });
+dlg.addEventListener("click", e => { if (e.target === dlg) closeSample(); }); // click outside the sheet
+$("#s-close").addEventListener("click", closeSample);
+document.addEventListener("click", e => {
+  const b = e.target.closest(".pull");
+  if (b) openSample(b.dataset.kind, +b.dataset.i);
+});
+addEventListener("resize", fitProof);
+
+// Local copies: the download attribute is ignored cross-origin, so fetch the file and save it as a blob.
+// GitHub Pages allows cross-origin reads; if the fetch fails anyway, the plain link opens the file instead.
+document.addEventListener("click", async e => {
+  const a = e.target.closest("a.save");
+  if (!a || a.dataset.busy) return;
+  e.preventDefault();
+  a.dataset.busy = 1; a.setAttribute("aria-busy", "true");
+  try {
+    const r = await fetch(a.href);
+    if (!r.ok) throw 0;
+    const url = URL.createObjectURL(await r.blob());
+    const tmp = Object.assign(document.createElement("a"), { href: url, download: a.getAttribute("download") });
+    document.body.append(tmp); tmp.click(); tmp.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1e4);
+  } catch { location.href = a.href; }
+  delete a.dataset.busy; a.removeAttribute("aria-busy");
+});
+
+$("#q").addEventListener("input", e => render(e.target.value));
+$("#q").value = "";
+render();
+loadDates();
+loadReleases();
+</script>
+</body>
+</html>
