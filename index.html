@@ -196,7 +196,7 @@
   /* Bay: one two-tier rack. Uprights run the full height, a beam under each row of slots.
      Rear posts, rear beams and side frames sit --d behind the front ones; the wire
      deck lies flat between them. */
-  .rack { --d: 230px; --post: 12px; position: relative; padding: 0 var(--post); }
+  .rack { --d: 230px; --post: 18px; position: relative; padding: 0 var(--post); }
   .post { position: absolute; top: 0; bottom: -10px; width: var(--post); background: var(--tx-post, none) var(--upright); }
   .post::before, .post::after { content: ""; position: absolute; top: 0; bottom: 0; width: var(--post); background: inherit; filter: brightness(.72); }
   .post::before { right: 100%; transform-origin: right; transform: rotateY(-90deg); }
@@ -212,7 +212,7 @@
   .frame { /* side bracing between a front and rear post */
     position: absolute; top: 0; bottom: -10px; width: calc(var(--d) - var(--post));
     transform-origin: left; transform: rotateY(90deg); background: var(--upright-dark);
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 90' preserveAspectRatio='none'%3E%3Cpath d='M0 1.5H36M0 1.5L36 45L0 88.5' fill='none' stroke='%23000' stroke-width='3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 90px repeat-y; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 90' preserveAspectRatio='none'%3E%3Cpath d='M0 1.5H36M0 1.5L36 45L0 88.5' fill='none' stroke='%23000' stroke-width='3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 90px repeat-y;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 90' preserveAspectRatio='none'%3E%3Cpath d='M0 1.5H36M0 1.5L36 45L0 88.5' fill='none' stroke='%23000' stroke-width='7' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 90px repeat-y; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 90' preserveAspectRatio='none'%3E%3Cpath d='M0 1.5H36M0 1.5L36 45L0 88.5' fill='none' stroke='%23000' stroke-width='7' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 90px repeat-y;
   }
   .frame.l { left: calc(var(--post) / 2); }
   .frame.r { left: calc(100% - var(--post) / 2); }
@@ -867,9 +867,9 @@ function paintTextures() {
   const fill = (c, col, x, y, w, h) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
   const specks = (c, w, h, n, rnd, cols) => { for (let i = 0; i < n; i++) fill(c, cols[i % cols.length], rnd() * w | 0, rnd() * h | 0, 1, 1); };
 
-  set("--tx-post", 6, 12, 2, (c, w, h) => {
+  set("--tx-post", 9, 12, 2, (c, w, h) => {
     fill(c, v("--upright"), 0, 0, w, h); fill(c, "rgba(255,255,255,.25)", 0, 0, 1, h); fill(c, "rgba(0,0,0,.3)", w - 1, 0, 1, h);
-    fill(c, "#0d1a2e", 2, 3, 2, 4); fill(c, "rgba(255,255,255,.2)", 2, 7, 2, 1);
+    fill(c, "#0d1a2e", 3, 3, 3, 4); fill(c, "rgba(255,255,255,.2)", 3, 7, 3, 1);
   });
   set("--tx-beam", 16, 13, 2, (c, w, h, rnd) => {
     fill(c, v("--beam"), 0, 0, w, h); fill(c, v("--beam-top"), 0, 0, w, 1); fill(c, "rgba(0,0,0,.25)", 0, 8, w, 1); fill(c, v("--beam-dark"), 0, 9, w, 4);
