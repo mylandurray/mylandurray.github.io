@@ -66,7 +66,7 @@
   /* Everything with text sits on something: the sign and noticeboard on the
      wall, the lookup screen on the PC, labels on packets and beams.
      Rough scale: ~380px to the metre, so the desk and monitor match the rack. */
-  .room { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 40px; align-items: end; }
+  .room { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 40px; align-items: end; }
   .bay { min-width: 0; }
 
   /* Wall sign above the rack */
@@ -84,8 +84,8 @@
   .cmyk span { width: 12px; height: 12px; border-radius: 50%; }
   h1 { margin: 0; font: 800 clamp(20px, 3.6vw, 34px)/1.1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 
-  /* Workstation column: noticeboard and light switch on the wall, desk on the floor */
-  .station { display: flex; flex-direction: column; justify-content: flex-end; gap: 56px; margin-bottom: -10px; }
+  /* Workstation column, on the near (left) side of the rack: noticeboard and light switch on the wall, desk on the floor */
+  .station { order: -1; display: flex; flex-direction: column; justify-content: flex-end; gap: 56px; margin-bottom: -10px; }
   .wall-bits { display: flex; align-items: flex-start; gap: 16px; }
   .board {
     flex: 1; min-width: 0; padding: 12px; border-radius: 3px;
@@ -126,8 +126,8 @@
   }
   .desk-top::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: var(--dd);
     transform-origin: bottom; transform: rotateX(90deg); background: var(--tx-desk, none) #e9e5dc; }
-  .desk-top::after { content: ""; position: absolute; right: 100%; top: 0; bottom: 0; width: var(--dd);
-    transform-origin: right; transform: rotateY(-90deg); background: #a9a396; }
+  .desk-top::after { content: ""; position: absolute; left: 100%; top: 0; bottom: 0; width: var(--dd);
+    transform-origin: left; transform: rotateY(90deg); background: #a9a396; }
   .leg { position: absolute; bottom: 0; width: 10px; height: 270px; background: linear-gradient(90deg, #6d7079, #a9acb3 40%, #5d6068); }
   .leg.fl, .leg.rl { left: 6px; } .leg.fr, .leg.rr { right: 6px; }
   .leg.rl, .leg.rr { transform: translateZ(calc(10px - var(--dd))); filter: brightness(.65); }
@@ -135,8 +135,8 @@
     position: absolute; right: 40px; bottom: 0; width: 56px; height: 150px; transform: translateZ(-30px);
     background: linear-gradient(90deg, #26282d, #34363c); border-radius: 2px;
   }
-  .tower::before { content: ""; position: absolute; right: 100%; top: 0; bottom: 0; width: 110px;
-    transform-origin: right; transform: rotateY(-90deg); background: #1b1c20; }
+  .tower::before { content: ""; position: absolute; left: 100%; top: 0; bottom: 0; width: 110px;
+    transform-origin: left; transform: rotateY(90deg); background: #1b1c20; }
   .tower::after { content: ""; position: absolute; left: 22px; top: 14px; width: 12px; height: 12px; border-radius: 50%;
     border: 2px solid #4b4e55; box-shadow: 0 0 0 1px #111, inset 0 0 3px #5ad16f; }
   .keyboard { position: absolute; left: 34px; bottom: 284px; width: 130px; height: 44px;
