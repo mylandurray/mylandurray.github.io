@@ -61,7 +61,7 @@
     -webkit-font-smoothing: antialiased;
   }
   a { color: inherit; }
-  .wrap { max-width: 1440px; margin: 0 auto; padding: 24px 16px 70px; }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 24px 16px 70px 48px; }
 
   /* Everything with text sits on something: the sign and noticeboard on the
      wall, the lookup screen on the PC, labels on packets and beams.
@@ -137,17 +137,34 @@
   }
   .tower::before { content: ""; position: absolute; left: 100%; top: 0; bottom: 0; width: 110px;
     transform-origin: left; transform: rotateY(90deg); background: #1b1c20; }
+  .tower i:not(.l) { height: 110px; background: #3a3c42; } /* top */
+  .tower .l { width: 110px; background: #1b1c20; }
+  .desk-top .l { width: var(--dd); background: #a9a396; }
   .tower::after { content: ""; position: absolute; left: 22px; top: 14px; width: 12px; height: 12px; border-radius: 50%;
     border: 2px solid #4b4e55; box-shadow: 0 0 0 1px #111, inset 0 0 3px #5ad16f; }
   .keyboard { position: absolute; left: 34px; bottom: 284px; width: 130px; height: 44px;
     transform-origin: bottom; transform: translateZ(-30px) rotateX(90deg); background: #2b2d33; border-radius: 3px; }
   /* Monitor on the desk: ~0.55 m wide */
-  .monitor { position: absolute; z-index: 2; left: 18px; bottom: 284px; transform: translateZ(-110px); width: 214px; display: flex; flex-direction: column; align-items: center; }
+  .monitor { position: absolute; z-index: 2; left: 34px; bottom: 284px; transform: translateZ(-100px) rotateY(32deg); /* angled toward the room */ width: 214px; display: flex; flex-direction: column; align-items: center; }
   .bezel { position: relative; width: 100%; background: #2b2d33; border-radius: 6px; padding: 7px 7px 14px;
     box-shadow: 0 10px 14px -10px var(--shadow), inset 0 0 0 1px rgba(255,255,255,.06); }
   .bezel::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #5ad16f; box-shadow: 0 0 4px #5ad16f; }
-  .neck { width: 16px; height: 22px; background: linear-gradient(90deg, #4f5259, #8c8f97 40%, #4f5259); }
-  .foot { width: 76px; height: 6px; border-radius: 3px 3px 1px 1px; background: #3a3c42; }
+  .neck { position: relative; width: 16px; height: 22px; background: linear-gradient(90deg, #4f5259, #8c8f97 40%, #4f5259); transform: translateZ(-48px); }
+  .foot { width: 90px; height: 80px; margin-top: -74px; border-radius: 8px; background: #3a3c42; transform-origin: bottom; transform: translateZ(-6px) rotateX(90deg); }
+  /* Monitor body: a 26px-deep panel with a rear housing; the stand's neck rises from the base plate behind it */
+  .monitor, .bezel, .neck, .mon-shell, .mon-shell i { transform-style: preserve-3d; }
+  .mon-shell { position: absolute; inset: 0; pointer-events: none; }
+  /* Boxes on the near side can show either side face (turn vs perspective), so they get both: ::after right, .l left */
+  .mon-shell .h { position: absolute; left: 20%; right: 20%; top: 14%; bottom: 18%; transform: translateZ(-34px); }
+  .mon-shell::before, .mon-shell::after, .mon-shell .h::before, .mon-shell .h::after, .neck::after, .tower i, .l { content: ""; position: absolute; }
+  .mon-shell::before, .mon-shell .h::before, .tower i:not(.l) { left: 0; right: 0; bottom: 100%; transform-origin: bottom; transform: rotateX(90deg); }
+  .mon-shell::after, .mon-shell .h::after, .neck::after { left: 100%; top: 0; bottom: 0; transform-origin: left; transform: rotateY(90deg); }
+  .l { right: 100%; top: 0; bottom: 0; transform-origin: right; transform: rotateY(-90deg); }
+  .mon-shell::before { height: 34px; background: #3a3c42; }
+  .mon-shell::after, .mon-shell > .l { width: 34px; background: #1f2126; }
+  .mon-shell .h::before { height: 26px; background: #34363c; }
+  .mon-shell .h::after, .mon-shell .h .l { width: 26px; background: #1b1c20; }
+  .neck::after { width: 12px; background: #3a3c42; }
   .screen {
     background: #0d1511; color: #8fe3a1; border-radius: 2px; padding: 8px 9px 7px;
     background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
@@ -421,7 +438,7 @@
     .scene { perspective: none; }
     .room { transform: none; }
     .wall3d, .floor3d { display: none; }
-    .wrap { padding-bottom: 0; }
+    .wrap { padding: 24px 16px 0; }
     .room { grid-template-columns: 1fr; gap: 40px; }
     /* No floor space for a desk: the screen is wall-mounted above the rack on its bracket */
     /* Phone order: sign, then noticeboard and screen, then the rack */
@@ -484,6 +501,7 @@
       <div class="desk">
         <div class="monitor">
           <div class="bezel">
+            <i class="mon-shell"><i class="l"></i><i class="h"><i class="l"></i></i></i>
             <div class="screen">
               <div class="scr-title">STOCK LOOKUP<span class="blink">_</span></div>
               <label class="scr-search"><span>find&gt;</span><input type="search" id="q" placeholder="name or tag" aria-label="Filter tools" autocomplete="off"></label>
@@ -493,8 +511,8 @@
           <div class="neck"></div><div class="foot"></div>
         </div>
         <i class="keyboard"></i>
-        <div class="desk-top"></div>
-        <i class="leg rl"></i><i class="leg rr"></i><i class="tower"></i><i class="leg fl"></i><i class="leg fr"></i>
+        <div class="desk-top"><i class="l"></i></div>
+        <i class="leg rl"></i><i class="leg rr"></i><i class="tower"><i></i><i class="l"></i></i><i class="leg fl"></i><i class="leg fr"></i>
       </div>
     </aside>
   </div>
