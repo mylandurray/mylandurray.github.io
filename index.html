@@ -66,7 +66,7 @@
   /* Everything with text sits on something: the sign and noticeboard on the
      wall, the lookup screen on the PC, labels on packets and beams.
      Rough scale: ~380px to the metre, so the desk and monitor match the rack. */
-  .room { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 40px; align-items: end; }
+  .room { display: grid; grid-template-columns: 270px minmax(0, 1fr) 250px; gap: 40px; align-items: end; }
   .bay { min-width: 0; }
 
   /* Wall sign above the rack */
@@ -444,6 +444,25 @@
     .s-body { grid-template-columns: 1fr; gap: 16px; }
   }
 
+  /* Floor spot, on the far (right) side of the rack: side projects that don't earn shelf space,
+     dumped on a pallet at a slight angle */
+  .floor-spot { margin-bottom: -10px; transform-style: preserve-3d; pointer-events: none; }
+  .floor-spot .slot { transform: translateZ(-40px) rotateY(-9deg); }
+  .floor-spot .packet { margin: 0 14px; }
+  .floor-spot .beam-label { right: 40px; bottom: 9px; }
+  .pallet { /* front face: three blocks under a top deck board; the top face lies flat behind it */
+    --pd: 200px; position: relative; height: 30px; transform-style: preserve-3d;
+    background:
+      linear-gradient(#c79a62 0 8px, transparent 8px) 0 0 / 100% 100% no-repeat,
+      linear-gradient(90deg, #a87a46 0 34px, transparent 34px calc(50% - 17px), #a87a46 calc(50% - 17px) calc(50% + 17px), transparent calc(50% + 17px) calc(100% - 34px), #a87a46 calc(100% - 34px)) 0 8px / 100% 18px no-repeat,
+      linear-gradient(transparent 26px, #b8894f 26px);
+    box-shadow: 0 6px 8px -4px var(--shadow);
+  }
+  .pallet::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: var(--pd); transform-origin: bottom; transform: rotateX(90deg);
+    background: repeating-linear-gradient(90deg, #d2a96f 0 30px, #7a5634 30px 38px); }
+  .pallet .loc { position: absolute; left: 40px; top: 12px; background: var(--y); color: #1c1c20; padding: 0 5px; border-radius: 1px;
+    font: 700 9px/11px ui-monospace, Consolas, monospace; letter-spacing: .08em; }
+
   @media (min-width: 761px) { .floor { display: none; } }
   @media (max-width: 760px) {
     /* Flat front view: no perspective, so the 3D side faces collapse edge-on */
@@ -462,6 +481,9 @@
     .monitor { position: relative; left: auto; bottom: auto; width: 100%; }
     .bezel::before { content: ""; position: absolute; z-index: -1; left: 35%; right: 35%; top: 25%; bottom: 25%; background: #4f5259; box-shadow: 0 0 0 6px #6d7079; }
     .slots { min-height: 0; }
+    .floor-spot { margin: 0 0 54px; } /* the floor strip rises 64px into the room */
+    .floor-spot .slot { transform: none; }
+    .pallet::before { display: none; }
   }
   @media (max-width: 520px) {
     .wrap { padding-top: 24px; }
@@ -497,6 +519,8 @@
         </div>
       </div>
     </main>
+
+    <aside class="floor-spot" id="floor-slots" aria-label="Floor, side projects"></aside>
 
     <aside class="station" aria-label="Workstation">
       <div class="wall-bits">
@@ -566,6 +590,7 @@
 // features: bullet points for the sample sheet (opened by clicking a packet)
 // shot: optional screenshot path; web apps fall back to a live preview of the app itself
 // wip: true puts a "Work in progress" hold sticker on the packet
+// floor: true leaves it off the shelves, on a pallet on the floor right of the rack (side projects)
 // offline: optional single-file build inside the app's folder, offered as a local-copy download
 //          (only for apps that work from a double-clicked file, i.e. everything inlined)
 const OWNER = "mylandurray";
@@ -597,6 +622,7 @@ const APPS = [
       "Made for new starters and curious customers"
     ],
     wip: true,
+    floor: true,
     wrap: "kraft"
   },
   {
@@ -712,9 +738,10 @@ function barcode(text) {
   return `<svg viewBox="0 0 110 24" fill="currentColor" aria-hidden="true">${bars}</svg>`;
 }
 const stockNo = (prefix, i) => `${prefix}-${String(i + 1).padStart(2, "0")}`;
+const appCode = a => { const set = APPS.filter(x => !!x.floor === !!a.floor); return stockNo(a.floor ? "FL" : "A2", set.indexOf(a)); };
 
 const WIP = `<span class="hold" title="Still being built: expect rough edges">Work in progress</span>`;
-function packet({ attrs, kind, i, code, stock, name, blurb, spec, foot, wip, extra = "" }) {
+function packet({ attrs, kind, i, code, stock, name, blurb, spec, foot, wip, extra = "", base }) {
   return `
     <div class="slot" data-stock="${code}">
       <div ${attrs}>
@@ -733,7 +760,7 @@ function packet({ attrs, kind, i, code, stock, name, blurb, spec, foot, wip, ext
           </div>
         </div>
       </div>
-      <div class="beam"><span class="loc">${code}</span></div>
+      ${base || `<div class="beam"><span class="loc">${code}</span></div>`}
     </div>`;
 }
 
@@ -742,9 +769,9 @@ function render(filter = "") {
   const apps = APPS.filter(a => matches(f, a.name, a.blurb, a.section, a.wip ? "wip work in progress" : "", ...a.tags));
   const dls = DOWNLOADS.filter(d => matches(f, d.name, d.blurb, "windows mac download", d.wip ? "wip work in progress" : "", ...d.tags));
 
-  $("#web-slots").innerHTML = apps.map(a => packet({
+  const webPacket = a => packet({
     attrs: `class="packet w-${a.wrap}"`, kind: "web", i: APPS.indexOf(a),
-    code: stockNo("A2", APPS.indexOf(a)), wip: a.wip, stock: a.repo, name: a.name, blurb: a.blurb,
+    code: appCode(a), wip: a.wip, base: a.floor && `<div class="pallet"><span class="loc">${appCode(a)}</span><p class="beam-label">Side project</p></div>`, stock: a.repo, name: a.name, blurb: a.blurb,
     spec: [
       ["Grade", esc(a.section)],
       ["Finish", esc(a.tags.join(" · "))],
@@ -752,7 +779,9 @@ function render(filter = "") {
       ["Milled", "—", `milled" data-repo="${esc(a.repo)}`]
     ],
     foot: `<span class="more">Details</span>${a.offline ? `<a class="dl-btn icon save" href="${esc(offlineFor(a))}" download="${esc(a.offline)}" title="Download a local copy (one HTML file)" aria-label="Download a local copy of ${esc(a.name)}">${DL_ICON}</a>` : ""}<a class="open" href="${esc(urlFor(a))}">Open →</a>`
-  })).join("");
+  });
+  $("#web-slots").innerHTML = apps.filter(a => !a.floor).map(webPacket).join("");
+  $("#floor-slots").innerHTML = apps.filter(a => a.floor).map(webPacket).join("");
 
   $("#dl-slots").innerHTML = dls.map(d => packet({
     attrs: `class="packet w-${d.wrap}" data-id="${esc(d.id)}"`, kind: "dl", i: DOWNLOADS.indexOf(d),
@@ -951,7 +980,7 @@ function openSample(kind, i) {
   const web = kind === "web", it = (web ? APPS : DOWNLOADS)[i];
   const rel = web ? null : latestFor(it);
   $("#s-band").className = `s-band w-${it.wrap}`;
-  $("#s-code").textContent = stockNo(web ? "A2" : "A1", i);
+  $("#s-code").textContent = web ? appCode(it) : stockNo("A1", i);
   $("#s-name").innerHTML = esc(it.name) + (it.wip ? ` ${WIP}` : "");
   $("#s-about").textContent = it.blurb;
   $("#s-features").innerHTML = (it.features || []).map(x => `<li>${esc(x)}</li>`).join("");
